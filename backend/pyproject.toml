@@ -1,0 +1,41 @@
+[project]
+name = "vital-backend"
+version = "0.1.0"
+description = "VITAL fusion engine — FastAPI ingest, signal processing, alerts"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "numpy>=2.1",
+    "scipy>=1.14",
+    "websockets>=13",
+    "httpx>=0.27",
+    "twilio>=9.3",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+pose = [
+    "ultralytics>=8.3",
+    "opencv-python-headless>=4.10",
+]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+]
+
+# pytest config lives in pytest.ini (both for toml/ini consumers).
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

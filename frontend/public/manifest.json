@@ -1,0 +1,10 @@
+{
+  "name": "VITAL Worker",
+  "short_name": "VITAL",
+  "description": "Personal heat-stress monitor for warehouse workers",
+  "start_url": "/worker",
+  "display": "standalone",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "icons": []
+}

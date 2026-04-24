@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg: #0b0f14;
+  --panel: #111821;
+  --border: #1f2a37;
+  --muted: #6b7280;
+}
+
+body {
+  background: var(--bg);
+  color: #e5e7eb;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.pulse-red {
+  animation: pulse-red 0.9s ease-in-out infinite;
+}
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  50%      { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0); }
+}
