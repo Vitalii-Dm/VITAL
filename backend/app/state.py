@@ -7,6 +7,7 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from typing import Any
 
 from app.fusion.engine import FusionResult
 from app.signal.breathing import BreathingExtractor
@@ -22,8 +23,9 @@ class ZoneState:
     last_bpm: float = 0.0
     last_temp_c: float = 20.0
     last_rh_pct: float = 50.0
-    last_vision_horizontal: bool = False
-    last_vision_fall: bool = False
+    last_persons: list[dict[str, Any]] = field(default_factory=list)
+    last_pose_heartbeat: float = 0.0  # 0.0 == never seen
+    last_emergency_dispatch_ts: float = 0.0  # debounce for emergency_dispatch event
     last_fusion: FusionResult | None = None
     waveform: deque[float] = field(default_factory=lambda: deque(maxlen=280))  # 10s @ 28Hz
     updated_at: float = field(default_factory=time.time)

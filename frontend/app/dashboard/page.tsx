@@ -3,11 +3,26 @@
 import { AlertCard } from "@/components/AlertCard";
 import { BreathingWaveform } from "@/components/BreathingWaveform";
 import { FloorPlan } from "@/components/FloorPlan";
+import { SkeletonOverlay } from "@/components/SkeletonOverlay";
 import { useFusionStream } from "@/lib/useFusionStream";
+import type { FusionMessage } from "@/lib/types";
+
+function pickFocus(zones: Record<string, FusionMessage>): FusionMessage | undefined {
+  const values = Object.values(zones);
+  if (values.length === 0) return undefined;
+  // Prefer zones where someone is down the longest; fall back to first.
+  const sorted = [...values].sort(
+    (a, b) => (b.max_down_seconds ?? 0) - (a.max_down_seconds ?? 0)
+  );
+  return sorted[0];
+}
 
 export default function Dashboard() {
   const { zones, connected } = useFusionStream();
-  const primary = Object.values(zones)[0];
+  const primary = pickFocus(zones);
+  const zonesWithPeople = Object.values(zones).filter(
+    (z) => !z.pose_stale && (z.persons?.length ?? 0) > 0
+  );
 
   return (
     <main className="min-h-screen p-8 grid grid-cols-12 gap-6">
@@ -48,6 +63,34 @@ export default function Dashboard() {
             {primary ? `${primary.temp_c.toFixed(1)}°C / ${primary.rh_pct.toFixed(0)}% RH` : ""}
           </div>
         </div>
+        <div className="panel p-4">
+          <div className="flex items-baseline justify-between mb-2">
+            <h3 className="text-xs uppercase tracking-wider text-gray-400">
+              Pose · {primary?.zone ?? "—"}
+            </h3>
+            {primary?.pose_stale && (
+              <span className="text-[10px] font-mono text-gray-400 bg-gray-700/60 px-2 py-0.5 rounded">
+                CAMERA OFFLINE
+              </span>
+            )}
+          </div>
+          {primary && !primary.pose_stale ? (
+            <SkeletonOverlay persons={primary.persons ?? []} />
+          ) : (
+            <div className="aspect-[4/3] flex items-center justify-center text-gray-500 text-sm border border-gray-800 rounded-lg">
+              {primary?.pose_stale ? "Camera offline" : "Waiting for pose stream…"}
+            </div>
+          )}
+          {primary && !primary.pose_stale && (
+            <div className="text-xs font-mono text-gray-400 mt-2">
+              {(primary.persons?.length ?? 0)} person
+              {(primary.persons?.length ?? 0) === 1 ? "" : "s"}
+              {typeof primary.max_down_seconds === "number" && primary.max_down_seconds >= 1
+                ? ` · max down ${primary.max_down_seconds.toFixed(1)}s`
+                : ""}
+            </div>
+          )}
+        </div>
       </aside>
 
       <section className="col-span-12 panel p-4">
@@ -62,6 +105,23 @@ export default function Dashboard() {
               <div className="text-xs font-mono text-gray-400 mt-1">
                 {z.bpm > 0 ? `${z.bpm.toFixed(0)} bpm` : "—"} · WBT {z.wetbulb_c.toFixed(0)}°
               </div>
+              {typeof z.max_down_seconds === "number" && z.max_down_seconds >= 3 && (
+                <div
+                  className={
+                    "text-[10px] font-mono mt-1 " +
+                    (z.max_down_seconds >= 20
+                      ? "text-red-400"
+                      : z.max_down_seconds >= 10
+                      ? "text-amber-400"
+                      : "text-yellow-300")
+                  }
+                >
+                  down {z.max_down_seconds.toFixed(0)}s
+                </div>
+              )}
+              {z.pose_stale && (
+                <div className="text-[10px] font-mono text-gray-500 mt-1">camera offline</div>
+              )}
             </div>
           ))}
           {Object.keys(zones).length === 0 && (
@@ -70,6 +130,22 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {zonesWithPeople.length > 1 && (
+          <div className="mt-6">
+            <h4 className="text-xs uppercase tracking-wider text-gray-400 mb-3">
+              Live skeletons
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {zonesWithPeople.map((z) => (
+                <div key={`sk-${z.zone}`} className="rounded-lg border border-gray-800 p-2">
+                  <div className="text-xs text-gray-400 mb-1">{z.zone}</div>
+                  <SkeletonOverlay persons={z.persons ?? []} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
     </main>
   );

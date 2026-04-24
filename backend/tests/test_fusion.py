@@ -7,7 +7,7 @@ from app.signal.wetbulb import wet_bulb_c
 
 def test_normal_conditions_are_low():
     wifi = classify_wifi(bpm=16, moving=True, seconds_still=0)
-    vision = classify_vision(horizontal=False, fall_transient=False)
+    vision = classify_vision(horizontal=False, max_down_seconds=0.0)
     env = classify_env(22, 50, wet_bulb_c(22, 50))
     r = fuse(wifi, vision, env)
     assert r.severity == Severity.LOW
@@ -17,7 +17,7 @@ def test_normal_conditions_are_low():
 
 def test_three_layers_agree_triggers_high_heat_exhaustion():
     wifi = classify_wifi(bpm=45, moving=False, seconds_still=10)
-    vision = classify_vision(horizontal=True, fall_transient=True)
+    vision = classify_vision(horizontal=True, max_down_seconds=5.0)
     env = classify_env(35, 70, wet_bulb_c(35, 70))
     r = fuse(wifi, vision, env)
     assert r.severity == Severity.HIGH
@@ -26,19 +26,31 @@ def test_three_layers_agree_triggers_high_heat_exhaustion():
 
 
 def test_two_layers_is_medium_loc():
-    # wifi (still too long) + vision (horizontal), cool zone.
+    # wifi (still too long) + vision (horizontal 5 s on floor), cool zone.
     wifi = classify_wifi(bpm=16, moving=False, seconds_still=10)
-    vision = classify_vision(horizontal=True, fall_transient=False)
+    vision = classify_vision(horizontal=True, max_down_seconds=5.0)
     env = classify_env(22, 50, wet_bulb_c(22, 50))
     r = fuse(wifi, vision, env)
     assert r.severity == Severity.MEDIUM
     assert r.event == EventType.LOSS_OF_CONSCIOUSNESS
 
 
-def test_transient_fall_only_is_low():
+def test_brief_horizontal_under_flag_threshold_is_low():
+    # On-floor for 1 s: below the 3 s classifier threshold → nothing flags.
     wifi = classify_wifi(bpm=16, moving=True, seconds_still=0)
-    vision = classify_vision(horizontal=False, fall_transient=True)
+    vision = classify_vision(horizontal=True, max_down_seconds=1.0)
     env = classify_env(22, 50, wet_bulb_c(22, 50))
     r = fuse(wifi, vision, env)
     assert r.severity == Severity.LOW
     assert r.event == EventType.NORMAL
+
+
+def test_twenty_seconds_down_forces_high_even_alone():
+    # Cool zone, normal breathing, but single person has been down 25 s.
+    wifi = classify_wifi(bpm=16, moving=True, seconds_still=0)
+    vision = classify_vision(horizontal=True, max_down_seconds=25.0)
+    env = classify_env(22, 50, wet_bulb_c(22, 50))
+    r = fuse(wifi, vision, env)
+    assert r.severity == Severity.HIGH
+    assert r.emergency_override is True
+    assert any("≥20s" in reason for reason in r.reasons)

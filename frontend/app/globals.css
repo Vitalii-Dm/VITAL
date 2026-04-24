@@ -29,3 +29,19 @@ body {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
   50%      { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0); }
 }
+
+.skeleton-pulse-fast {
+  animation: skeleton-pulse-fast 0.55s ease-in-out infinite;
+}
+@keyframes skeleton-pulse-fast {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: 0.7; transform: scale(1.06); }
+}
+
+.zone-down-flash {
+  animation: zone-down-flash 0.7s ease-in-out infinite;
+}
+@keyframes zone-down-flash {
+  0%, 100% { stroke-opacity: 1;   filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8)); }
+  50%      { stroke-opacity: 0.4; filter: drop-shadow(0 0 14px rgba(239, 68, 68, 0.4)); }
+}

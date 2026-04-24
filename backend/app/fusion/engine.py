@@ -17,6 +17,11 @@ from app.fusion.event_classifier import classify_event
 from app.fusion.events import EVENT_LABELS, EventType, Severity
 from app.fusion.signals import EnvSignal, VisionSignal, WifiSignal
 
+# Pose-only override: if a person has been on the floor this long, escalate
+# straight to HIGH even without other layers agreeing. Triggers the future
+# ElevenLabs / 911 pipeline in `alerts/dispatcher.py`.
+FORCE_HIGH_DOWN_SECONDS = 20.0
+
 
 @dataclass
 class FusionResult:
@@ -27,6 +32,7 @@ class FusionResult:
     flagged_layers: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
+    emergency_override: bool = False  # HIGH forced by max_down_seconds >= 20s
 
 
 def _severity_from_flag_count(n_flagged: int) -> Severity:
@@ -49,6 +55,16 @@ def fuse(wifi: WifiSignal, vision: VisionSignal, env: EnvSignal) -> FusionResult
 
     severity = _severity_from_flag_count(len(flagged_layers))
     confidence = _combined_confidence(wifi.score, vision.score, env.score)
+
+    emergency_override = vision.max_down_seconds >= FORCE_HIGH_DOWN_SECONDS
+    if emergency_override:
+        severity = Severity.HIGH
+        reason = f"on floor ≥{int(FORCE_HIGH_DOWN_SECONDS)}s"
+        if reason not in reasons:
+            reasons.append(reason)
+        if "vision" not in flagged_layers:
+            flagged_layers.append("vision")
+
     event = classify_event(wifi, vision, env, severity)
 
     return FusionResult(
@@ -58,4 +74,5 @@ def fuse(wifi: WifiSignal, vision: VisionSignal, env: EnvSignal) -> FusionResult
         confidence=confidence,
         flagged_layers=flagged_layers,
         reasons=reasons,
+        emergency_override=emergency_override,
     )

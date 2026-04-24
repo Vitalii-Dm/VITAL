@@ -13,10 +13,19 @@ def fuse_zone(zone: ZoneState) -> FusionResult:
         moving=(zone.last_motion.moving if zone.last_motion else True),
         seconds_still=(zone.last_motion.seconds_still if zone.last_motion else 0.0),
     )
+
+    persons = zone.last_persons
+    any_horizontal = any(bool(p.get("horizontal", False)) for p in persons)
+    downs = [float(p.get("down_seconds", 0.0)) for p in persons]
+    max_down = max(downs, default=0.0)
+    on_floor_count = sum(1 for d in downs if d > 0.0)
     vision = classify_vision(
-        horizontal=zone.last_vision_horizontal,
-        fall_transient=zone.last_vision_fall,
+        horizontal=any_horizontal,
+        max_down_seconds=max_down,
+        persons_on_floor_count=on_floor_count,
+        has_person=bool(persons),
     )
+
     wbt = wet_bulb_c(zone.last_temp_c, zone.last_rh_pct)
     env = classify_env(zone.last_temp_c, zone.last_rh_pct, wbt)
     return fuse(wifi, vision, env)
