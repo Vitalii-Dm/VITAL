@@ -22,6 +22,8 @@ def _thin_person(p: dict[str, Any]) -> dict[str, Any]:
         "track_id": p.get("track_id"),
         "horizontal": bool(p.get("horizontal", False)),
         "down_seconds": float(p.get("down_seconds", 0.0)),
+        "posture": p.get("posture", "unknown"),
+        "standing": bool(p.get("standing", False)),
         "keypoints": p.get("keypoints", []),
     }
 
@@ -31,6 +33,9 @@ def build_fusion_payload(zone: ZoneState, result: FusionResult) -> dict[str, Any
     max_down_seconds = max(
         (float(p.get("down_seconds", 0.0)) for p in zone.last_persons),
         default=0.0,
+    )
+    standing_count = sum(
+        1 for p in zone.last_persons if bool(p.get("standing", False))
     )
 
     # pose_stale is undefined (False) until we've ever heard a heartbeat.
@@ -56,5 +61,6 @@ def build_fusion_payload(zone: ZoneState, result: FusionResult) -> dict[str, Any
         "waveform": list(zone.waveform),
         "persons": persons,
         "max_down_seconds": round(max_down_seconds, 1),
+        "standing_count": standing_count,
         "pose_stale": pose_stale,
     }

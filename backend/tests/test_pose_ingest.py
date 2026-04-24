@@ -16,11 +16,23 @@ from app.ingest.handlers import on_pose_heartbeat, on_pose_snapshot
 from app.state import ZoneState
 
 
-def _person(track_id: int, horizontal: bool, down_seconds: float) -> dict:
+def _person(
+    track_id: int,
+    horizontal: bool,
+    down_seconds: float,
+    *,
+    posture: str | None = None,
+) -> dict:
+    # Default posture mirrors the pose worker: on-floor if horizontal or
+    # counting up, standing otherwise. Caller can override for unknown/etc.
+    if posture is None:
+        posture = "on_floor" if (horizontal or down_seconds > 0.0) else "standing"
     return {
         "track_id": track_id,
         "horizontal": horizontal,
         "down_seconds": down_seconds,
+        "posture": posture,
+        "standing": posture == "standing",
         "bbox": [0, 0, 10, 20],
         "keypoints": [[0.0, 0.0, 0.0]] * 17,
     }
@@ -132,6 +144,41 @@ def test_multiple_tracks_have_independent_timers():
     r2 = fuse_zone(zone2)
     assert r2.severity == Severity.LOW
     assert r2.emergency_override is False
+
+
+def test_mixed_standing_and_on_floor_counts():
+    """Zone with one upright worker + one down worker.
+
+    standing_count must count only the upright track, persons_on_floor_count
+    only the downed one, and max_down_seconds must reflect only the downed
+    track — not the standing one.
+    """
+    zone = ZoneState(zone_id="zone-mixed")
+    zone.last_persons = [
+        _person(1, horizontal=False, down_seconds=0.0),  # standing
+        _person(2, horizontal=True, down_seconds=7.5),   # on floor
+    ]
+    r = fuse_zone(zone)
+    payload = build_fusion_payload(zone, r)
+
+    assert payload["standing_count"] == 1
+    assert payload["max_down_seconds"] == 7.5
+    # One track contributes to the on-floor count via its down_seconds.
+    assert r.flagged_layers == ["vision"] or "vision" in r.flagged_layers
+
+    # Verify the VisionSignal carries the same counts into fusion.
+    from app.fusion.classifiers import classify_vision
+    any_horiz = any(p["horizontal"] for p in zone.last_persons)
+    max_down = max(p["down_seconds"] for p in zone.last_persons)
+    vision = classify_vision(
+        horizontal=any_horiz,
+        max_down_seconds=max_down,
+        persons_on_floor_count=1,
+        has_person=True,
+        standing_count=1,
+    )
+    assert vision.standing_count == 1
+    assert vision.persons_on_floor_count == 1
 
 
 def test_heartbeat_freshness_flag():

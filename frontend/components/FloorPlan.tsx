@@ -92,6 +92,20 @@ export function FloorPlan({ zones }: { zones: Record<string, FusionMessage> }) {
                 {state.temp_c.toFixed(0)}°C · WBT {state.wetbulb_c.toFixed(0)}°
               </text>
             )}
+            {state && (
+              <text
+                x={z.x + 12}
+                y={z.y + 60}
+                fill="#6b7280"
+                fontSize="10"
+                fontFamily="ui-monospace"
+              >
+                Standing: {state.standing_count ?? 0} · Floor:{" "}
+                {(state.persons ?? []).filter(
+                  (p) => (p.down_seconds ?? 0) >= 3
+                ).length}
+              </text>
+            )}
             {state && state.severity !== "low" && (
               <text
                 x={z.x + 12}

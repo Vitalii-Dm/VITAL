@@ -51,14 +51,27 @@ function headAnchor(keypoints: Person["keypoints"]): { x: number; y: number } | 
 function PersonSkeleton({ person }: { person: Person }) {
   const { keypoints } = person;
   const tier = badgeTier(person.down_seconds);
-  const stroke =
+  // Down-tier stroke wins — those are the risk states the dashboard
+  // already colours. Otherwise the stroke reflects posture: green for
+  // standing, slate for unknown (so operators can tell the CV layer is
+  // uncertain from a glance), blue as the legacy default.
+  const downStroke =
     tier === "red"
-      ? "#ef4444"
+      ? { color: "#ef4444", opacity: 0.9 }
       : tier === "amber"
-      ? "#f59e0b"
+      ? { color: "#f59e0b", opacity: 0.9 }
       : tier === "yellow"
-      ? "#eab308"
-      : "#60a5fa";
+      ? { color: "#eab308", opacity: 0.9 }
+      : null;
+  const postureStroke =
+    person.posture === "standing" || person.standing === true
+      ? { color: "#34d399", opacity: 0.7 } // emerald-400
+      : person.posture === "unknown"
+      ? { color: "#94a3b8", opacity: 0.8 } // slate-400
+      : { color: "#60a5fa", opacity: 0.9 }; // default blue
+
+  const { color: stroke, opacity: strokeOpacity } =
+    downStroke ?? postureStroke;
 
   return (
     <g>
@@ -77,7 +90,7 @@ function PersonSkeleton({ person }: { person: Person }) {
             stroke={stroke}
             strokeWidth={3}
             strokeLinecap="round"
-            opacity={0.9}
+            opacity={strokeOpacity}
           />
         );
       })}

@@ -54,13 +54,26 @@ export const standingPerson: Person = {
   track_id: 1,
   horizontal: false,
   down_seconds: 0,
+  posture: "standing",
+  standing: true,
   keypoints: standingPose(320, 60),
+};
+
+export const secondStandingPerson: Person = {
+  track_id: 5,
+  horizontal: false,
+  down_seconds: 0,
+  posture: "standing",
+  standing: true,
+  keypoints: standingPose(140, 60),
 };
 
 export const downWatchPerson: Person = {
   track_id: 2,
   horizontal: true,
   down_seconds: 6.1,
+  posture: "on_floor",
+  standing: false,
   keypoints: horizontalPose(260, 260),
 };
 
@@ -68,6 +81,8 @@ export const downWarnPerson: Person = {
   track_id: 3,
   horizontal: true,
   down_seconds: 14.7,
+  posture: "on_floor",
+  standing: false,
   keypoints: horizontalPose(260, 260),
 };
 
@@ -75,6 +90,8 @@ export const emergencyPerson: Person = {
   track_id: 4,
   horizontal: true,
   down_seconds: 27.3,
+  posture: "on_floor",
+  standing: false,
   keypoints: horizontalPose(260, 260),
 };
 
@@ -96,6 +113,7 @@ function baseFusion(zone: string): FusionMessage {
     waveform: Array.from({ length: 120 }, (_, i) => Math.sin(i / 6) * 0.5),
     persons: [],
     max_down_seconds: 0,
+    standing_count: 0,
     pose_stale: false,
   };
 }
@@ -103,8 +121,10 @@ function baseFusion(zone: string): FusionMessage {
 export const fusionFixtures: Record<string, FusionMessage> = {
   "zone-1": {
     ...baseFusion("zone-1"),
-    persons: [standingPerson],
+    label: "Two workers upright",
+    persons: [standingPerson, secondStandingPerson],
     max_down_seconds: 0,
+    standing_count: 2,
   },
   "zone-2": {
     ...baseFusion("zone-2"),
@@ -113,8 +133,9 @@ export const fusionFixtures: Record<string, FusionMessage> = {
     label: "Worker down (watch)",
     reasons: ["person horizontal (6s)"],
     confidence: 0.6,
-    persons: [downWatchPerson],
+    persons: [downWatchPerson, secondStandingPerson],
     max_down_seconds: 6.1,
+    standing_count: 1,
   },
   "zone-3": {
     ...baseFusion("zone-3"),
@@ -126,6 +147,7 @@ export const fusionFixtures: Record<string, FusionMessage> = {
     bpm: 0,
     persons: [downWarnPerson],
     max_down_seconds: 14.7,
+    standing_count: 0,
   },
   "zone-4": {
     ...baseFusion("zone-4"),
@@ -137,12 +159,14 @@ export const fusionFixtures: Record<string, FusionMessage> = {
     bpm: 0,
     persons: [emergencyPerson],
     max_down_seconds: 27.3,
+    standing_count: 0,
   },
   "zone-5": {
     ...baseFusion("zone-5"),
     label: "Camera offline",
     persons: [],
     max_down_seconds: 0,
+    standing_count: 0,
     pose_stale: true,
   },
 };

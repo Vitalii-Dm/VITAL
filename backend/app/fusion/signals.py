@@ -34,6 +34,7 @@ class VisionSignal(LayerSignal):
     has_person: bool = False
     max_down_seconds: float = 0.0       # longest on-floor duration across persons
     persons_on_floor_count: int = 0     # how many distinct tracks are on the floor
+    standing_count: int = 0             # how many distinct tracks are upright (informational)
 
 
 @dataclass
