@@ -14,7 +14,13 @@ import time
 
 import websockets
 
-SCENARIOS = ("standing", "fall-at-45s", "already-down", "down-then-emergency")
+SCENARIOS = (
+    "standing",
+    "fall-at-45s",
+    "already-down",
+    "down-then-emergency",
+    "two-workers-one-down",
+)
 
 # Minimal 17-keypoint placeholder — (x, y, conf). Good enough for the wire
 # contract tests; real pose worker fills in true pixel coords.
@@ -27,11 +33,18 @@ def _person(
     down_seconds: float,
     bbox=(100, 100, 200, 300),
     keypoints=None,
+    posture: str | None = None,
 ) -> dict:
+    # Derive posture from horizontal/down_seconds unless the caller overrode
+    # it — mimics the pose worker's debounced label.
+    if posture is None:
+        posture = "on_floor" if (horizontal or down_seconds > 0.0) else "standing"
     return {
         "track_id": track_id,
         "horizontal": bool(horizontal),
         "down_seconds": float(down_seconds),
+        "posture": posture,
+        "standing": posture == "standing",
         "bbox": list(bbox),
         "keypoints": keypoints if keypoints is not None else _EMPTY_KP,
     }
@@ -86,6 +99,45 @@ async def run(
                     persons.append(_person(1, horizontal=True, down_seconds=ds))
                     if ds > 25.0:
                         print("[fake_yolo] 25 s on floor — emergency should have fired")
+
+            elif scenario == "two-workers-one-down":
+                # Track 1 is standing the entire time (upright coworker),
+                # track 2 goes on floor at t=5s and counts up past the 20 s
+                # emergency threshold.
+                persons.append(
+                    _person(
+                        1,
+                        horizontal=False,
+                        down_seconds=0.0,
+                        bbox=(60, 80, 160, 360),
+                    )
+                )
+                if elapsed < 5.0:
+                    persons.append(
+                        _person(
+                            2,
+                            horizontal=False,
+                            down_seconds=0.0,
+                            bbox=(300, 90, 420, 370),
+                        )
+                    )
+                    down_since = None
+                else:
+                    if down_since is None:
+                        down_since = now_mono
+                    ds = now_mono - down_since
+                    persons.append(
+                        _person(
+                            2,
+                            horizontal=True,
+                            down_seconds=ds,
+                            bbox=(240, 280, 520, 360),
+                        )
+                    )
+                    if ds > 25.0:
+                        print(
+                            "[fake_yolo] 25 s on floor — emergency should have fired"
+                        )
 
             await ws.send(
                 json.dumps(

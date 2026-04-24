@@ -49,6 +49,7 @@ def test_payload_shape_and_rounding():
     # New pose-related fields are present with sensible defaults.
     assert p["persons"] == []
     assert p["max_down_seconds"] == 0.0
+    assert p["standing_count"] == 0
     assert p["pose_stale"] is False
 
 
@@ -59,21 +60,38 @@ def test_payload_includes_persons_passthrough():
             "track_id": 3,
             "horizontal": True,
             "down_seconds": 12.4,
+            "posture": "on_floor",
+            "standing": False,
             "bbox": [0, 0, 10, 30],
             "keypoints": [[1.0, 2.0, 0.9]],
-        }
+        },
+        {
+            "track_id": 4,
+            "horizontal": False,
+            "down_seconds": 0.0,
+            "posture": "standing",
+            "standing": True,
+            "bbox": [50, 0, 80, 50],
+            "keypoints": [[5.0, 6.0, 0.9]],
+        },
     ]
     result = _fuse_zone(zone)
     p = build_fusion_payload(zone, result)
     assert p["max_down_seconds"] == 12.4
-    assert len(p["persons"]) == 1
-    person = p["persons"][0]
-    assert person["track_id"] == 3
-    assert person["horizontal"] is True
-    assert person["down_seconds"] == 12.4
+    assert p["standing_count"] == 1
+    assert len(p["persons"]) == 2
+    down_person = next(pp for pp in p["persons"] if pp["track_id"] == 3)
+    assert down_person["horizontal"] is True
+    assert down_person["down_seconds"] == 12.4
+    assert down_person["posture"] == "on_floor"
+    assert down_person["standing"] is False
     # Serializer strips bbox from the dashboard payload.
-    assert "bbox" not in person
-    assert person["keypoints"] == [[1.0, 2.0, 0.9]]
+    assert "bbox" not in down_person
+    assert down_person["keypoints"] == [[1.0, 2.0, 0.9]]
+
+    up_person = next(pp for pp in p["persons"] if pp["track_id"] == 4)
+    assert up_person["posture"] == "standing"
+    assert up_person["standing"] is True
 
 
 def test_payload_pose_stale_flag():

@@ -30,10 +30,17 @@ COCO_R_HIP = 12
 DEFAULT_STRIDE_MS = 100
 DEFAULT_DEBOUNCE_ENTER = 5
 DEFAULT_DEBOUNCE_EXIT = 5
+# Standing is less consequential than on_floor — 3 frames is enough to
+# keep counts from flickering without adding obvious lag.
+DEFAULT_DEBOUNCE_POSTURE = 3
 DEFAULT_ASPECT_RATIO_THRESHOLD = 1.2
 DEFAULT_LOW_VELOCITY_PX = 3.0  # mean per-keypoint L2 motion over ~1 s
 DEFAULT_TRACK_TTL_S = 3.0      # drop tracks not seen for this long
 HEARTBEAT_S = 1.0
+
+POSTURE_STANDING = "standing"
+POSTURE_ON_FLOOR = "on_floor"
+POSTURE_UNKNOWN = "unknown"
 
 
 @dataclass
@@ -44,6 +51,11 @@ class _TrackState:
     off_floor_streak: int = 0
     down_since: float | None = None
     last_seen: float = 0.0
+    # Posture debounce — separate from the on_floor timer because we commit
+    # a label only after a short streak to avoid flickering standing counts.
+    posture: str = POSTURE_UNKNOWN
+    candidate_posture: str = POSTURE_UNKNOWN
+    posture_streak: int = 0
 
 
 def _torso_horizontal(xy, conf) -> bool:
@@ -76,6 +88,66 @@ def _aspect_ratio(bbox) -> float:
     w = max(1e-6, float(x2 - x1))
     h = max(1e-6, float(y2 - y1))
     return w / h
+
+
+def _bbox_hw_ratio(bbox) -> float:
+    """Height-over-width. Inverse of `_aspect_ratio` — useful for upright check."""
+    x1, y1, x2, y2 = bbox
+    w = max(1e-6, float(x2 - x1))
+    h = max(1e-6, float(y2 - y1))
+    return h / w
+
+
+def _torso_vertical(xy, conf) -> bool:
+    """Shoulder-hip axis more vertical than horizontal, hips below shoulders.
+
+    Mirror of `_torso_horizontal`: requires the same ≥0.3 keypoint confidence
+    but enforces dy > dx and a meaningful positive dy (hips below shoulders
+    in image coordinates — y grows downward).
+    """
+    if xy is None or len(xy) < 13 or conf is None:
+        return False
+    try:
+        sl, sr = xy[COCO_L_SHOULDER], xy[COCO_R_SHOULDER]
+        hl, hr = xy[COCO_L_HIP], xy[COCO_R_HIP]
+        sl_c, sr_c = float(conf[COCO_L_SHOULDER]), float(conf[COCO_R_SHOULDER])
+        hl_c, hr_c = float(conf[COCO_L_HIP]), float(conf[COCO_R_HIP])
+    except (IndexError, TypeError):
+        return False
+
+    if min(sl_c, sr_c) < 0.3 or min(hl_c, hr_c) < 0.3:
+        return False
+
+    shoulder_y = (sl[1] + sr[1]) / 2
+    hip_y = (hl[1] + hr[1]) / 2
+    shoulder_x = (sl[0] + sr[0]) / 2
+    hip_x = (hl[0] + hr[0]) / 2
+
+    dy = float(hip_y - shoulder_y)   # signed: positive when hips below shoulders
+    dx = float(abs(shoulder_x - hip_x))
+    # A "meaningful" dy — filter out cases where the person is too small /
+    # the hip-shoulder distance is near zero to be informative.
+    if dy <= 0 or dy < 20:
+        return False
+    return dy > dx
+
+
+def _classify_posture(
+    xy, conf, bbox, on_floor: bool, aspect_threshold: float
+) -> str:
+    """One of POSTURE_STANDING / POSTURE_ON_FLOOR / POSTURE_UNKNOWN.
+
+    `on_floor` is the already-computed debounced-input from `_is_on_floor`.
+    Standing requires vertical torso AND tall bbox (h/w > threshold). Anything
+    ambiguous falls back to unknown so the dashboard can grey it out.
+    """
+    if on_floor:
+        return POSTURE_ON_FLOOR
+    vertical = _torso_vertical(xy, conf)
+    tall = _bbox_hw_ratio(bbox) > aspect_threshold
+    if vertical and tall:
+        return POSTURE_STANDING
+    return POSTURE_UNKNOWN
 
 
 def _mean_velocity(history: deque, now: float, window_s: float = 1.0) -> float:
@@ -122,6 +194,7 @@ async def _run_once(
     stride_s: float,
     debounce_enter: int,
     debounce_exit: int,
+    debounce_posture: int,
     aspect_threshold: float,
     vel_threshold: float,
     track_ttl_s: float,
@@ -189,6 +262,24 @@ async def _run_once(
 
                     down_seconds = (now - st.down_since) if st.down_since is not None else 0.0
 
+                    # Debounced posture label. We use the already-debounced
+                    # on_floor signal (via down_since) so "on_floor" here
+                    # agrees with the timer. Standing/unknown need their own
+                    # small streak filter to stop counts flickering.
+                    raw_posture = _classify_posture(
+                        xy, cf, bbox,
+                        on_floor=(st.down_since is not None),
+                        aspect_threshold=aspect_threshold,
+                    )
+                    if raw_posture == st.candidate_posture:
+                        st.posture_streak += 1
+                    else:
+                        st.candidate_posture = raw_posture
+                        st.posture_streak = 1
+                    if st.posture_streak >= debounce_posture:
+                        st.posture = raw_posture
+                    # else: keep previous committed posture (sticky)
+
                     # Keypoints shaped as [[x, y, conf], ... 17].
                     kp_out: list[list[float]] = []
                     if xy is not None and cf is not None and len(xy) >= 17:
@@ -204,6 +295,8 @@ async def _run_once(
                             "track_id": track_id,
                             "horizontal": bool(torso_h),
                             "down_seconds": float(down_seconds),
+                            "posture": st.posture,
+                            "standing": st.posture == POSTURE_STANDING,
                             "bbox": [float(v) for v in bbox],
                             "keypoints": kp_out,
                         }
@@ -237,6 +330,7 @@ async def run(
     stride_ms: int,
     debounce_enter: int,
     debounce_exit: int,
+    debounce_posture: int,
     aspect_threshold: float,
     vel_threshold: float,
     track_ttl_s: float,
@@ -268,6 +362,7 @@ async def run(
                     stride_s=stride_s,
                     debounce_enter=debounce_enter,
                     debounce_exit=debounce_exit,
+                    debounce_posture=debounce_posture,
                     aspect_threshold=aspect_threshold,
                     vel_threshold=vel_threshold,
                     track_ttl_s=track_ttl_s,
@@ -294,6 +389,9 @@ def main() -> None:
     parser.add_argument("--debounce-enter", type=int, default=DEFAULT_DEBOUNCE_ENTER)
     parser.add_argument("--debounce-exit", type=int, default=DEFAULT_DEBOUNCE_EXIT)
     parser.add_argument(
+        "--debounce-posture", type=int, default=DEFAULT_DEBOUNCE_POSTURE
+    )
+    parser.add_argument(
         "--aspect-threshold", type=float, default=DEFAULT_ASPECT_RATIO_THRESHOLD
     )
     parser.add_argument(
@@ -311,6 +409,7 @@ def main() -> None:
             args.stride_ms,
             args.debounce_enter,
             args.debounce_exit,
+            args.debounce_posture,
             args.aspect_threshold,
             args.vel_threshold,
             args.track_ttl_s,

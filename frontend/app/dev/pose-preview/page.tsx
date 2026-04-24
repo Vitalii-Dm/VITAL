@@ -18,7 +18,8 @@ export default function PosePreview() {
       <header>
         <h1 className="text-2xl font-bold">VITAL · pose preview (dev)</h1>
         <p className="text-gray-400 text-sm">
-          Static fixture render — no WS. Covers all four down-tiers + stale camera.
+          Static fixture render — no WS. Covers standing + all four down-tiers +
+          stale camera. Standing skeletons stroke emerald; unknown posture is slate.
         </p>
       </header>
 
@@ -46,7 +47,8 @@ export default function PosePreview() {
                 <SkeletonOverlay persons={z.persons ?? []} />
               )}
               <div className="text-xs font-mono text-gray-400 mt-1">
-                max_down_seconds = {(z.max_down_seconds ?? 0).toFixed(1)}s
+                max_down_seconds = {(z.max_down_seconds ?? 0).toFixed(1)}s ·
+                standing_count = {z.standing_count ?? 0}
               </div>
             </div>
           </div>

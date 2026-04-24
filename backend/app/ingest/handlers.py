@@ -45,7 +45,9 @@ def on_pose_snapshot(
     """Store the latest multi-person pose snapshot for a zone.
 
     `persons` matches the wire shape from the pose worker: each entry has
-    `track_id`, `horizontal`, `down_seconds`, `bbox`, `keypoints`.
+    `track_id`, `horizontal`, `down_seconds`, `posture`, `standing`, `bbox`,
+    `keypoints`. Older emitters without `posture`/`standing` are tolerated —
+    downstream consumers default those to "unknown"/False.
     """
     zone = world.zone(zone_id)
     zone.last_persons = list(persons)

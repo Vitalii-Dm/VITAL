@@ -73,6 +73,16 @@ def test_vision_on_floor_20s_top_score():
     assert s.score == 1.0
 
 
+def test_vision_carries_standing_count():
+    s = classify_vision(
+        horizontal=False, max_down_seconds=0.0, standing_count=3
+    )
+    assert s.standing_count == 3
+    # Standing alone must not flag — informational only.
+    assert s.flag is False
+    assert s.score == 0.0
+
+
 # ----- env -----
 
 

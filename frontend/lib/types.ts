@@ -10,10 +10,16 @@ export type EventType =
 
 export type Keypoint = [number, number, number];
 
+export type Posture = "standing" | "on_floor" | "unknown";
+
 export interface Person {
   track_id: number;
   horizontal: boolean;
   down_seconds: number;
+  // Optional for backwards compat with pre-standing emitters — treat
+  // absence as "unknown" / false.
+  posture?: Posture;
+  standing?: boolean;
   keypoints: Keypoint[];
 }
 
@@ -34,5 +40,6 @@ export interface FusionMessage {
   waveform: number[];
   persons?: Person[];
   max_down_seconds?: number;
+  standing_count?: number;
   pose_stale?: boolean;
 }

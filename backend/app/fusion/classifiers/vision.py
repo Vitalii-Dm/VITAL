@@ -30,6 +30,7 @@ def classify_vision(
     max_down_seconds: float = 0.0,
     persons_on_floor_count: int = 0,
     has_person: bool = True,
+    standing_count: int = 0,
 ) -> VisionSignal:
     score = _score_for(max_down_seconds)
     flag = max_down_seconds >= FLAG_SECONDS
@@ -47,4 +48,5 @@ def classify_vision(
         has_person=has_person,
         max_down_seconds=max_down_seconds,
         persons_on_floor_count=persons_on_floor_count,
+        standing_count=standing_count,
     )

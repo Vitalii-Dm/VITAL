@@ -42,16 +42,21 @@ One JSON message per zone per fusion tick (~500 ms):
       "track_id": 3,
       "horizontal": true,
       "down_seconds": 12.4,
+      "posture": "on_floor",
+      "standing": false,
       "keypoints": [[x, y, conf]]
     }
   ],
   "max_down_seconds": 12.4,
+  "standing_count": 1,
   "pose_stale": false
 }
 ```
 
 - `persons` — pass-through of the latest pose snapshot (no bbox, no image data).
 - `max_down_seconds` — longest on-floor duration across tracked persons, 0 if none.
+- `standing_count` — how many tracks are classified as `standing` in the latest
+  snapshot. Informational; not fed into severity logic.
 - `pose_stale` — true when no pose heartbeat has been received for >3 s.
   Stays false until the first heartbeat arrives.
 
@@ -73,6 +78,8 @@ Snapshot — one per stride (~100 ms):
       "track_id": 3,
       "horizontal": true,
       "down_seconds": 12.4,
+      "posture": "on_floor",
+      "standing": false,
       "bbox": [x1, y1, x2, y2],
       "keypoints": [[x, y, conf]]
     }
@@ -85,6 +92,10 @@ Snapshot — one per stride (~100 ms):
 - `horizontal` is the derived torso-axis boolean for that person.
 - `down_seconds` is the seconds since that tracked identity crossed into
   the "on floor" debounce. 0 when off-floor.
+- `posture` is one of `"standing" | "on_floor" | "unknown"`. Debounced over
+  3 consecutive frames so zone-level counts don't flicker.
+- `standing` is the convenience boolean `posture == "standing"` (dashboard
+  uses this rather than string-compare).
 - No image data, no face data — only skeletons and bboxes.
 
 Heartbeat — one per ~1 s:

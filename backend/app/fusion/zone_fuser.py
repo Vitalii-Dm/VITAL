@@ -19,11 +19,15 @@ def fuse_zone(zone: ZoneState) -> FusionResult:
     downs = [float(p.get("down_seconds", 0.0)) for p in persons]
     max_down = max(downs, default=0.0)
     on_floor_count = sum(1 for d in downs if d > 0.0)
+    # Standing is informational — "upright worker" count per zone. Falls back
+    # to False for any person dict emitted by a pre-standing pose worker.
+    standing_count = sum(1 for p in persons if bool(p.get("standing", False)))
     vision = classify_vision(
         horizontal=any_horizontal,
         max_down_seconds=max_down,
         persons_on_floor_count=on_floor_count,
         has_person=bool(persons),
+        standing_count=standing_count,
     )
 
     wbt = wet_bulb_c(zone.last_temp_c, zone.last_rh_pct)
