@@ -17,6 +17,15 @@ const severityFill: Record<string, string> = {
   high: "#ef4444",
 };
 
+type DownTier = "none" | "watch" | "warn" | "emergency";
+
+function downTier(max: number | undefined): DownTier {
+  if (!max || max < 3) return "none";
+  if (max < 10) return "watch";
+  if (max < 20) return "warn";
+  return "emergency";
+}
+
 export function FloorPlan({ zones }: { zones: Record<string, FusionMessage> }) {
   return (
     <svg viewBox="0 0 620 380" className="w-full h-auto">
@@ -24,7 +33,25 @@ export function FloorPlan({ zones }: { zones: Record<string, FusionMessage> }) {
       {ZONES.map((z) => {
         const state = zones[z.id];
         const sev = state?.severity ?? "low";
-        const fill = severityFill[sev];
+        const sevFill = severityFill[sev];
+        const tier = downTier(state?.max_down_seconds);
+        const stale = state?.pose_stale === true;
+
+        // max_down_seconds >= 20 s overrides severity styling.
+        const isEmergencyOverride = tier === "emergency";
+        const strokeColor = isEmergencyOverride
+          ? severityFill.high
+          : tier === "warn"
+          ? severityFill.medium
+          : tier === "watch"
+          ? "#eab308"
+          : sevFill;
+
+        const strokeWidth =
+          isEmergencyOverride || sev === "high" ? 3 : tier === "warn" ? 2.5 : 1.5;
+
+        const showAmberGlow = tier === "warn" && !isEmergencyOverride;
+
         return (
           <g key={z.id}>
             <rect
@@ -32,12 +59,17 @@ export function FloorPlan({ zones }: { zones: Record<string, FusionMessage> }) {
               y={z.y}
               width={z.w}
               height={z.h}
-              fill={fill}
+              fill={sevFill}
               fillOpacity={sev === "low" ? 0.08 : sev === "medium" ? 0.25 : 0.45}
-              stroke={fill}
-              strokeWidth={sev === "high" ? 3 : 1.5}
+              stroke={strokeColor}
+              strokeWidth={strokeWidth}
               rx="8"
-              className={clsx(sev === "high" && "pulse-red")}
+              className={clsx(
+                isEmergencyOverride && "zone-down-flash",
+                !isEmergencyOverride && sev === "high" && "pulse-red",
+                showAmberGlow && "animate-pulse"
+              )}
+              strokeDasharray={tier === "watch" && !isEmergencyOverride ? "6 4" : undefined}
             />
             <text
               x={z.x + 12}
@@ -64,12 +96,69 @@ export function FloorPlan({ zones }: { zones: Record<string, FusionMessage> }) {
               <text
                 x={z.x + 12}
                 y={z.y + z.h - 14}
-                fill={fill}
+                fill={sevFill}
                 fontSize="12"
                 fontWeight={700}
               >
                 {state.label.toUpperCase()}
               </text>
+            )}
+            {tier !== "none" && (
+              <g>
+                <rect
+                  x={z.x + z.w - 104}
+                  y={z.y + 8}
+                  width={96}
+                  height={20}
+                  rx={4}
+                  fill={
+                    isEmergencyOverride
+                      ? "#ef4444"
+                      : tier === "warn"
+                      ? "#f59e0b"
+                      : "#eab308"
+                  }
+                  fillOpacity={0.9}
+                />
+                <text
+                  x={z.x + z.w - 56}
+                  y={z.y + 22}
+                  fill={isEmergencyOverride ? "#fff" : "#111"}
+                  fontSize="10"
+                  fontWeight={700}
+                  textAnchor="middle"
+                  fontFamily="ui-monospace"
+                >
+                  {isEmergencyOverride
+                    ? `EMERGENCY ${Math.round(state?.max_down_seconds ?? 0)}s`
+                    : `DOWN ${Math.round(state?.max_down_seconds ?? 0)}s`}
+                </text>
+              </g>
+            )}
+            {stale && (
+              <g>
+                <rect
+                  x={z.x + 12}
+                  y={z.y + z.h - 34}
+                  width={112}
+                  height={18}
+                  rx={4}
+                  fill="#374151"
+                  stroke="#4b5563"
+                  strokeWidth={1}
+                />
+                <text
+                  x={z.x + 68}
+                  y={z.y + z.h - 21}
+                  fill="#d1d5db"
+                  fontSize="10"
+                  fontWeight={600}
+                  textAnchor="middle"
+                  fontFamily="ui-monospace"
+                >
+                  CAMERA OFFLINE
+                </text>
+              </g>
             )}
           </g>
         );

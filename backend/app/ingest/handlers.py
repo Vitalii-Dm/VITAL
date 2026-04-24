@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
 
 from app.alerts.led_strip import register_address
 from app.ingest.csi_udp import CsiFrame
@@ -38,10 +39,19 @@ def on_csi_frame(frame: CsiFrame, source_ip: str | None = None) -> None:
         register_address(zone_id, source_ip)
 
 
-def on_vision_event(
-    zone_id: str, horizontal: bool, fall_transient: bool
+def on_pose_snapshot(
+    zone_id: str, persons: list[dict[str, Any]], ts: float | None = None
 ) -> None:
+    """Store the latest multi-person pose snapshot for a zone.
+
+    `persons` matches the wire shape from the pose worker: each entry has
+    `track_id`, `horizontal`, `down_seconds`, `bbox`, `keypoints`.
+    """
     zone = world.zone(zone_id)
-    zone.last_vision_horizontal = horizontal
-    zone.last_vision_fall = fall_transient
-    zone.updated_at = time.time()
+    zone.last_persons = list(persons)
+    zone.updated_at = ts if ts is not None else time.time()
+
+
+def on_pose_heartbeat(zone_id: str, ts: float | None = None) -> None:
+    zone = world.zone(zone_id)
+    zone.last_pose_heartbeat = ts if ts is not None else time.time()

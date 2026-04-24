@@ -8,6 +8,15 @@ export type EventType =
   | "loss_of_consciousness"
   | "unknown_medical";
 
+export type Keypoint = [number, number, number];
+
+export interface Person {
+  track_id: number;
+  horizontal: boolean;
+  down_seconds: number;
+  keypoints: Keypoint[];
+}
+
 export interface FusionMessage {
   type: "fusion";
   zone: string;
@@ -23,4 +32,7 @@ export interface FusionMessage {
   rh_pct: number;
   wetbulb_c: number;
   waveform: number[];
+  persons?: Person[];
+  max_down_seconds?: number;
+  pose_stale?: boolean;
 }

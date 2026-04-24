@@ -5,7 +5,7 @@ Decision rules (applied in order — first match wins):
     vision.horizontal AND env.heat_stress           → HEAT_EXHAUSTION
     vision.horizontal AND wifi.breathing_anomalous  → CARDIAC
     vision.horizontal AND wifi.still_too_long       → LOSS_OF_CONSCIOUSNESS
-    vision.horizontal OR vision.fall_transient      → FALL
+    vision flagged (person on floor)                → FALL
     any layer flagged at severity >= MEDIUM         → UNKNOWN_MEDICAL
     (none of the above)                             → NORMAL
 """
@@ -33,7 +33,7 @@ def classify_event(
     if vision.horizontal and wifi.still_too_long:
         return EventType.LOSS_OF_CONSCIOUSNESS
 
-    if vision.horizontal or vision.fall_transient:
+    if vision.flag or vision.horizontal:
         return EventType.FALL
 
     return EventType.UNKNOWN_MEDICAL

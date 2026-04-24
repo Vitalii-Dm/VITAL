@@ -42,22 +42,35 @@ def test_wifi_short_stillness_does_not_flag():
 
 
 def test_vision_upright_does_not_flag():
-    s = classify_vision(horizontal=False, fall_transient=False)
+    s = classify_vision(horizontal=False, max_down_seconds=0.0)
     assert s.flag is False
+    assert s.score == 0.0
 
 
-def test_vision_horizontal_flags_high_score():
-    s = classify_vision(horizontal=True, fall_transient=False)
+def test_vision_brief_on_floor_does_not_flag():
+    # 2 s on floor — below the 3 s threshold.
+    s = classify_vision(horizontal=True, max_down_seconds=2.0)
+    assert s.flag is False
+    assert s.score == 0.0
+
+
+def test_vision_on_floor_3s_flags_low_score():
+    s = classify_vision(horizontal=True, max_down_seconds=5.0)
     assert s.flag is True
-    assert s.horizontal is True
-    assert s.score >= 0.8
+    assert s.score == 0.4
+    assert "on floor" in s.reason
 
 
-def test_vision_fall_transient_alone_is_medium_score():
-    s = classify_vision(horizontal=False, fall_transient=True)
+def test_vision_on_floor_10s_medium_score():
+    s = classify_vision(horizontal=True, max_down_seconds=15.0)
     assert s.flag is True
-    assert s.fall_transient is True
-    assert 0.4 < s.score < 0.8
+    assert s.score == 0.7
+
+
+def test_vision_on_floor_20s_top_score():
+    s = classify_vision(horizontal=True, max_down_seconds=25.0)
+    assert s.flag is True
+    assert s.score == 1.0
 
 
 # ----- env -----
